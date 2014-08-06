@@ -18,54 +18,27 @@ static void PrintBSON(bson_t* obj) {
   printf("%s\n", str);
 }
 
-static bson_t* BuildInsert(uint32_t length) {
-  // BSON object holding an ID
-  bson_t* idObj = bson_new();
-  char id_str[25];
-  GenerateID(id_str);
-  bson_append_utf8(idObj, "_id", 3, id_str, 25);
-  
-  // BSON object with the payload to insert
-  bson_t* payload = bson_new();
-  const char* key;
-  char str[16];
-  for (int i = 0; i < length; i++) {
-    bson_uint32_to_string (i, &key, str, sizeof(str));
-    bson_append_utf8(payload, key, -1, "b", 1);
-  }
-  
-  // Build up this -> {q:{_id:<_id>}, u:<document>, upsert:true}
-  bson_t* insert = bson_new();
-  bson_append_document(insert, "q", 1, idObj);
-  bson_append_document(insert, "u", 1, payload);
-  bson_append_bool(insert, "upsert", 6, true);
-  
-  return insert;
-}
-
 static void DoStuff(mongoc_client_t* client, const uint32_t payload_length) {
-  // Turn the insert into a one element array
+  struct timeval startTime, currentTime;
+  gettimeofday(&startTime, NULL);
+  uint64_t startusec = startTime.tv_sec * 1000000 + startTime.tv_usec;
+  
+  // Build an array!
   bson_t* array = bson_new();
-  bson_append_document(array, "0", -1, BuildInsert(3));
-  bson_append_document(array, "1", -1, BuildInsert(payload_length));
   
-  // Build up the command to send
-  bson_t* command = bson_new();
-  bson_append_utf8(command, "update", 6, "c", 1);
-  bson_append_array(command, "updates", 7, array);
-  bson_append_bool(command, "ordered", 7, true);
+  printf("Array Size,Usec Elapsed\n");
   
-  // Send the command
-  bson_t reply;
-  bson_error_t error;
-  bool success = mongoc_client_command_simple(client, "TODO", command, NULL, &reply, &error);
-  
-  if (!success) {
-    printf("Command failed (domain: %u) (code: %u) (message: %s)\n", error.domain, error.code, error.message);
-    exit(1);
+  const char* key;
+  uint32_t index = 0;
+  char snprintfStorage[16];
+  for (uint32_t i = 0; i < payload_length; i++) {
+    bson_uint32_to_string (index++, &key, snprintfStorage, sizeof(snprintfStorage));
+    bson_append_int32(array, key, -1, i);
+    
+    gettimeofday(&currentTime, NULL);
+    uint64_t currentusec = currentTime.tv_sec * 1000000 + currentTime.tv_usec;
+    printf("%d,%llu\n", array->len, currentusec - startusec);
   }
-  
-  PrintBSON(&reply);
 }
 
 int main (int argc, char *argv[]) {
