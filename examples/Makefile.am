@@ -76,3 +76,8 @@ noinst_PROGRAMS += aggregation1
 aggregation1_SOURCES = examples/aggregation/aggregation1.c
 aggregation1_CFLAGS = $(EXAMPLE_CFLAGS)
 aggregation1_LDADD = $(EXAMPLE_LDADD)
+
+noinst_PROGRAMS += foobar
+foobar_SOURCES = examples/foobar.c
+foobar_CFLAGS = $(EXAMPLE_CFLAGS)
+foobar_LDADD = $(EXAMPLE_LDADD)

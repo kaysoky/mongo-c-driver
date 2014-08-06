@@ -254,6 +254,7 @@ mongoc_add_example(mongoc-dump TRUE ${SOURCE_DIR}/examples/mongoc-dump.c)
 mongoc_add_example(mongoc-ping TRUE ${SOURCE_DIR}/examples/mongoc-ping.c)
 mongoc_add_example(mongoc-rpc-validate FALSE ${SOURCE_DIR}/examples/mongoc-rpc-validate.c)
 mongoc_add_example(mongoc-tail TRUE ${SOURCE_DIR}/examples/mongoc-tail.c)
+mongoc_add_example(foobar TRUE ${SOURCE_DIR}/examples/foobar.c)
 
 file(COPY ${SOURCE_DIR}/tests/binary DESTINATION ${PROJECT_BINARY_DIR}/tests)
 file(COPY ${SOURCE_DIR}/tests/certificates DESTINATION ${PROJECT_BINARY_DIR}/tests)
