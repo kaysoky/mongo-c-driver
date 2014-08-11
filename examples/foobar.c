@@ -3,41 +3,75 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static void GenerateID(char generatedId[25]) {
-  bson_context_t* context = bson_context_new(
-      (bson_context_flags_t) (BSON_CONTEXT_THREAD_SAFE | BSON_CONTEXT_DISABLE_PID_CACHE));
+static void EnsureIndex(mongoc_collection_t* collection, const char* name, bson_t* indexDef, bool unique) {
+  bson_error_t error;
+  mongoc_index_opt_t opts;
+  mongoc_index_opt_init(&opts);
   
-  bson_oid_t oid;
-  bson_oid_init(&oid, context);
-  bson_oid_to_string(&oid, generatedId);
-}
-
-static void PrintBSON(bson_t* obj) {
-  size_t len;
-  char* str = bson_as_json(obj, &len);
-  printf("%s\n", str);
+  opts.name = name;
+  opts.unique = unique;
+  opts.background = true;
+  
+  mongoc_collection_create_index(collection, indexDef, &opts, &error);
 }
 
 static void DoStuff(mongoc_client_t* client, const uint32_t payload_length) {
+  bson_error_t error;
+  
+  // Get a clean database
+  mongoc_database_t* database = mongoc_client_get_database(client, "test");
+  mongoc_database_drop(database, &error);
+  database = mongoc_client_get_database(client, "test");
+  
+  // Get a clean collection
+  mongoc_collection_t* collection = mongoc_database_create_collection(database, "c", NULL, &error);
+  
+  // Create the _user + _key index definition
+  bson_t* indexDef = bson_new();
+  bson_append_int32(indexDef, "_user", 5, 1);
+  bson_append_int32(indexDef, "_key", 4, 1);
+  EnsureIndex(collection, "UserAndKeyUniqueIndex", indexDef, true);
+  
+  // Create the "a" and "c" indices (don't bother about the memory leak)
+  indexDef = bson_new();
+  bson_append_int32(indexDef, "a", 1, 1);
+  EnsureIndex(collection, "a", indexDef, false);
+  indexDef = bson_new();
+  bson_append_int32(indexDef, "c", 1, 1);
+  EnsureIndex(collection, "c", indexDef, false);
+  
+  // Start timing
   struct timeval startTime, currentTime;
   gettimeofday(&startTime, NULL);
   uint64_t startusec = startTime.tv_sec * 1000000 + startTime.tv_usec;
+  printf("Num Inserts,Usec Elapsed\n");
   
-  // Build an array!
-  bson_t* array = bson_new();
-  
-  printf("Array Size,Usec Elapsed\n");
-  
-  const char* key;
-  uint32_t index = 0;
-  char snprintfStorage[16];
+  // Build and insert the documents
+  mongoc_bulk_operation_t* bulk = NULL;
   for (uint32_t i = 0; i < payload_length; i++) {
-    bson_uint32_to_string (index++, &key, snprintfStorage, sizeof(snprintfStorage));
-    bson_append_int32(array, key, -1, i);
+    if (i % 300 == 0) {
+      
+      // Execute!
+      if (bulk != NULL) {
+          bson_t* reply = bson_new();
+          mongoc_bulk_operation_execute(bulk, reply, &error);
+          
+          mongoc_bulk_operation_destroy(bulk);
+          bulk = NULL;
     
-    gettimeofday(&currentTime, NULL);
-    uint64_t currentusec = currentTime.tv_sec * 1000000 + currentTime.tv_usec;
-    printf("%d,%llu\n", array->len, currentusec - startusec);
+          gettimeofday(&currentTime, NULL);
+          uint64_t currentusec = currentTime.tv_sec * 1000000 + currentTime.tv_usec;
+          printf("%d,%llu\n", i, currentusec - startusec);
+      }
+      
+      bulk = mongoc_collection_create_bulk_operation(collection, true, NULL);
+    }
+  
+    bson_t* document = bson_new();
+    bson_append_int32(document, "a", 1, i);
+    bson_append_int32(document, "c", 1, i * 100);
+    mongoc_bulk_operation_insert(bulk, document);
+    bson_destroy(document);
   }
 }
 
